@@ -12,9 +12,10 @@ export function demoActivity(address: string): Activity {
   return {
     tradeFeesMusd: Math.round(n(0) * n(0) * 400),
     poolsTraded: 1 + Math.floor(n(1) * 5),
-    healthyDebtMusdDays: Math.round(n(2) * 120_000),
-    savedMusdDays: Math.round(n(3) * 120_000),
-    weeksActive: Math.floor(n(4) * 40),
+    // Squared so most wallets are small and a few are large (a realistic long tail).
+    healthyDebtMusdDays: Math.round(n(2) ** 2 * 120_000),
+    savedMusdDays: Math.round(n(3) ** 2 * 120_000),
+    weeksActive: Math.floor(n(4) ** 1.5 * 40),
     weeksSinceActive: n(5) > 0.7 ? Math.floor(n(6) * 10) : 0,
   };
 }

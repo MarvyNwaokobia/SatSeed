@@ -2,6 +2,9 @@
 // set from real Mezo data (Phase 1) before launch. Shape is what matters here:
 // cost- and time-based inputs, diminishing returns, gentle decay.
 
+// Tips are deliberately NOT an input here. A second wallet can tip you for free-ish, so counting
+// tips would make growth farmable. Keep it that way unless tips become costly to fake.
+
 export type Activity = {
   /** Swap fees paid, in MUSD (fees, not raw volume, so fake volume costs money). */
   tradeFeesMusd: number;
