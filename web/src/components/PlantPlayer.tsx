@@ -39,8 +39,19 @@ export function PlantPlayer(props: PlantSceneProps) {
     return () => player.removeEventListener("ended", onEnded);
   }, [reduced]);
 
+  // The Remotion player reads the clock, so it only renders in the browser. Server and first
+  // client render show a same-sized placeholder, which also avoids layout shift.
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
+
   return (
-    <div className="overflow-hidden rounded-3xl border border-ink/10 shadow-sm">
+    <div className="self-start overflow-hidden rounded-3xl border border-ink/10 shadow-sm">
+      {!mounted ? (
+        <div style={{ aspectRatio: `${SCENE_WIDTH} / ${SCENE_HEIGHT}` }} className="bg-ink/5" />
+      ) : (
       <Player
         ref={ref}
         component={PlantScene}
@@ -55,6 +66,7 @@ export function PlantPlayer(props: PlantSceneProps) {
         controls={false}
         style={{ width: "100%", aspectRatio: `${SCENE_WIDTH} / ${SCENE_HEIGHT}` }}
       />
+      )}
     </div>
   );
 }

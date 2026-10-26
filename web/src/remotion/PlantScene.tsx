@@ -100,11 +100,15 @@ function Branch({
   );
 }
 
-export function PlantScene({ trade, borrow, save, roots, wilt, score }: PlantSceneProps) {
-  const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
+export type PlantArtProps = PlantSceneProps & {
+  /** 0..1 growth progress */
+  grow: number;
+  /** Animation frame, used for leaf flutter. */
+  frame: number;
+};
 
-  const grow = spring({ frame, fps, config: { damping: 200 }, durationInFrames: GROW_END });
+/** Pure drawing of the plant. Used by the Remotion scene and by static thumbnails. */
+export function PlantArt({ trade, borrow, save, roots, wilt, score, grow, frame }: PlantArtProps) {
   const sway =
     Math.sin(((frame - GROW_END) / SWAY_PERIOD) * Math.PI * 2) * 1.6 * (1 - wilt * 0.7);
 
@@ -202,4 +206,11 @@ export function PlantScene({ trade, borrow, save, roots, wilt, score }: PlantSce
       </g>
     </svg>
   );
+}
+
+export function PlantScene(props: PlantSceneProps) {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const grow = spring({ frame, fps, config: { damping: 200 }, durationInFrames: GROW_END });
+  return <PlantArt {...props} grow={grow} frame={frame} />;
 }
