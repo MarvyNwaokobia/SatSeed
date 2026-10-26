@@ -2,8 +2,14 @@
 
 A public record of how people take part in Mezo, drawn as a plant that grows with real activity.
 
-- `contracts/`: Foundry. `GardenRegistry` (opt-in claim by handle, free via EIP-712 signature) and `GardenTips` (non-custodial MUSD tips). `forge test`
+- `contracts/`: Foundry. `SatSeedRegistry` (opt-in claim by handle, free via EIP-712 signature) and `SatSeedTips` (non-custodial MUSD tips). `forge test`
 - `web/`: Next.js, Tailwind, Remotion (`@remotion/player`) for the plant. `pnpm dev`, `pnpm test`
+
+## Pages
+
+- `/` landing, `/dashboard` most active wallets with a side panel and Tip button, `/join` claim a handle, `/me` your own garden, `/garden/<address>` any public garden.
+- Claiming and tipping need the contracts deployed: copy `web/.env.example` to `web/.env.local` and fill in the addresses. Until then the UI says "not live yet".
+- Wallets: any injected EVM wallet for now.
 
 Garden pages currently show **demo data** derived from the address; real chain data needs the indexer (Phase 1 in the brief).
 
