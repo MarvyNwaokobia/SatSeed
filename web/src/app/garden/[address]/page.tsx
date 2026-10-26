@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
+import { GrowthBars } from "@/components/GrowthBars";
 import { PlantPlayer } from "@/components/PlantPlayer";
+import { TipPanel } from "@/components/TipPanel";
 import { parseAddress, shortAddress } from "@/lib/address";
 import { demoActivity } from "@/lib/demo";
 import { computeGrowth } from "@/lib/score";
@@ -9,10 +11,8 @@ import { computeGrowth } from "@/lib/score";
 export async function generateMetadata({ params }: PageProps<"/garden/[address]">) {
   const { address } = await params;
   const parsed = parseAddress(address);
-  return { title: parsed ? `Garden ${shortAddress(parsed)}` : "Garden" };
+  return { title: parsed ? `Garden ${shortAddress(parsed)} · SatSeed` : "Garden · SatSeed" };
 }
-
-const pct = (v: number) => `${Math.round(v * 100)}%`;
 
 export default function GardenPage({ params }: PageProps<"/garden/[address]">) {
   return (
@@ -28,13 +28,6 @@ async function Garden({ params }: Pick<PageProps<"/garden/[address]">, "params">
   if (!address) notFound();
 
   const growth = computeGrowth(demoActivity(address));
-
-  const rows = [
-    { label: "Trading", value: growth.trade, note: "Fees paid" },
-    { label: "Borrowing", value: growth.borrow, note: "Healthy debt, over time" },
-    { label: "Saving", value: growth.save, note: "Balance held, over time" },
-    { label: "Roots", value: growth.roots, note: "Weeks active" },
-  ];
 
   return (
     <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-10 sm:px-6">
@@ -62,20 +55,9 @@ async function Garden({ params }: Pick<PageProps<"/garden/[address]">, "params">
             </p>
           </div>
 
-          <ul className="space-y-4">
-            {rows.map((r) => (
-              <li key={r.label}>
-                <div className="flex justify-between text-sm font-semibold">
-                  <span>{r.label}</span>
-                  <span>{pct(r.value)}</span>
-                </div>
-                <div className="mt-1 h-2 overflow-hidden rounded-full bg-ink/10">
-                  <div className="h-full rounded-full bg-leaf-soft" style={{ width: pct(r.value) }} />
-                </div>
-                <p className="mt-1 text-xs opacity-60">{r.note}</p>
-              </li>
-            ))}
-          </ul>
+          <GrowthBars growth={growth} />
+
+          <TipPanel address={address} />
 
           <p className="rounded-xl border border-clay/40 bg-clay/10 p-3 text-sm">
             <strong>Demo data.</strong> This plant is generated from the address, not from real
