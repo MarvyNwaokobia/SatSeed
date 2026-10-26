@@ -5,15 +5,18 @@ import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import {Nonces} from "@openzeppelin/contracts/utils/Nonces.sol";
 
-/// @title GardenRegistry
+/// @title SatSeedRegistry
 /// @notice Opt-in registry where a wallet claims its public garden under a unique handle.
 /// @dev Holds no funds. A claim can be sent by the wallet itself or relayed by anyone with the
 ///      wallet's EIP-712 signature (so claiming can be free for the user). ERC-1271 wallets work.
 ///      Scores live off-chain; this contract only records who opted in and under which name.
-contract GardenRegistry is EIP712, Nonces {
+contract SatSeedRegistry is EIP712, Nonces {
     uint256 public constant MIN_HANDLE_LENGTH = 3;
     uint256 public constant MAX_HANDLE_LENGTH = 32;
     uint256 public constant MAX_URI_LENGTH = 256;
+    /// @notice After a handle is released or changed away from, only its previous owner can
+    ///         claim it again for this long. Stops someone grabbing a handle the moment it frees up.
+    uint256 public constant HANDLE_COOLDOWN = 30 days;
 
     bytes32 public constant CLAIM_TYPEHASH =
         keccak256("Claim(address owner,string handle,string metadataURI,uint256 nonce,uint256 deadline)");
@@ -27,19 +30,28 @@ contract GardenRegistry is EIP712, Nonces {
     mapping(address owner => Garden) private _gardens;
     mapping(bytes32 handleHash => address owner) private _handleOwner;
 
+    struct Released {
+        address previousOwner;
+        uint64 releasedAt;
+    }
+
+    mapping(bytes32 handleHash => Released) private _released;
+
     event GardenClaimed(address indexed owner, string handle, string metadataURI);
     event GardenUpdated(address indexed owner, string handle, string metadataURI);
     event GardenReleased(address indexed owner, string handle);
+    event SignaturesCancelled(address indexed owner, uint256 newNonce);
 
     error AlreadyClaimed();
     error NotClaimed();
     error HandleTaken();
+    error HandleCoolingDown();
     error InvalidHandle();
     error MetadataURITooLong();
     error SignatureExpired();
     error InvalidSignature();
 
-    constructor() EIP712("GardenRegistry", "1") {}
+    constructor() EIP712("SatSeedRegistry", "1") {}
 
     // ------------------------------------------------------------------ claim
 
@@ -87,8 +99,8 @@ contract GardenRegistry is EIP712, Nonces {
         bytes32 newHash = keccak256(bytes(handle));
         if (newHash != oldHash) {
             _checkHandle(handle);
-            if (_handleOwner[newHash] != address(0)) revert HandleTaken();
-            delete _handleOwner[oldHash];
+            _requireHandleFree(newHash, msg.sender);
+            _freeHandle(oldHash, msg.sender);
             _handleOwner[newHash] = msg.sender;
             g.handle = handle;
         }
@@ -102,10 +114,15 @@ contract GardenRegistry is EIP712, Nonces {
         Garden memory g = _gardens[msg.sender];
         if (g.claimedAt == 0) revert NotClaimed();
 
-        delete _handleOwner[keccak256(bytes(g.handle))];
+        _freeHandle(keccak256(bytes(g.handle)), msg.sender);
         delete _gardens[msg.sender];
 
         emit GardenReleased(msg.sender, g.handle);
+    }
+
+    /// @notice Invalidate every signed-but-unused claim the caller has outstanding.
+    function cancelSignatures() external {
+        emit SignaturesCancelled(msg.sender, _useNonce(msg.sender) + 1);
     }
 
     // ------------------------------------------------------------------- views
@@ -123,7 +140,9 @@ contract GardenRegistry is EIP712, Nonces {
     }
 
     function isHandleAvailable(string calldata handle) external view returns (bool) {
-        return _isValidHandle(bytes(handle)) && _handleOwner[keccak256(bytes(handle))] == address(0);
+        if (!_isValidHandle(bytes(handle))) return false;
+        bytes32 h = keccak256(bytes(handle));
+        return _handleOwner[h] == address(0) && !_coolingDown(h);
     }
 
     function nonceOf(address owner) external view returns (uint256) {
@@ -134,7 +153,27 @@ contract GardenRegistry is EIP712, Nonces {
         return _domainSeparatorV4();
     }
 
+    /// @notice True while a released handle is reserved for its previous owner.
+    function isHandleCoolingDown(string calldata handle) external view returns (bool) {
+        return _coolingDown(keccak256(bytes(handle)));
+    }
+
     // ---------------------------------------------------------------- internal
+
+    function _coolingDown(bytes32 h) private view returns (bool) {
+        Released memory r = _released[h];
+        return r.previousOwner != address(0) && block.timestamp < uint256(r.releasedAt) + HANDLE_COOLDOWN;
+    }
+
+    function _requireHandleFree(bytes32 h, address claimant) private view {
+        if (_handleOwner[h] != address(0)) revert HandleTaken();
+        if (_released[h].previousOwner != claimant && _coolingDown(h)) revert HandleCoolingDown();
+    }
+
+    function _freeHandle(bytes32 h, address previousOwner) private {
+        delete _handleOwner[h];
+        _released[h] = Released({previousOwner: previousOwner, releasedAt: uint64(block.timestamp)});
+    }
 
     function _claim(address owner, string calldata handle, string calldata metadataURI) private {
         if (_gardens[owner].claimedAt != 0) revert AlreadyClaimed();
@@ -142,7 +181,7 @@ contract GardenRegistry is EIP712, Nonces {
         _checkURI(metadataURI);
 
         bytes32 h = keccak256(bytes(handle));
-        if (_handleOwner[h] != address(0)) revert HandleTaken();
+        _requireHandleFree(h, owner);
 
         _handleOwner[h] = owner;
         _gardens[owner] = Garden({handle: handle, metadataURI: metadataURI, claimedAt: uint64(block.timestamp)});
